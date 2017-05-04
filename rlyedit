@@ -1,0 +1,139 @@
+#!/bin/bash
+#=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~==~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~#
+# rlyedit (Really Edit)
+#
+# Makes sure you can really edit a file before you start working on it!
+# If file is writable or user chooses to proceed, tries to open preferred editor
+#
+#=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~==~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~#
+# Copyright (c) 2017 Brianna Rainey
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+#
+#=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~==~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~#
+
+true=1
+false=0
+CONFIG="${HOME}/.config/rlyedit.conf"
+
+if ! [ -f $CONFIG ] && ! [ -z "$1" ] && ! [ "$1" = "--reset" ] && ! [ "$1" = "--help" ]; then
+    # first time running the program?
+    echo "Choose your preferred text editor:"
+    echo "(choice will be saved to ${CONFIG})"
+    if ! [ -z "$(which mcedit)" ]; then
+        read -n1 -r -p $'\nUse mcedit? [Y/n]' ch
+        if ! [ "$ch" = "n" ]; then
+            choice='mcedit'
+        fi
+    fi
+    if [ -z "$choice" ] && ! [ -z "$(which nano)" ]; then
+        read -n1 -r -p $'\nUse nano? [Y/n]' ch
+        if ! [ "$ch" = "n" ]; then
+            choice='nano'
+        fi
+    fi
+    if [ -z "$choice" ] && ! [ -z "$(which emacs)" ]; then
+        read -n1 -r -p $'\nUse emacs? [Y/n]' ch
+        if ! [ "$ch" = "n" ]; then
+            choice='emacs'
+        fi
+    fi
+    if [ -z "$choice" ] && ! [ -z "$(which vim)" ]; then
+        read -n1 -r -p $'\nUse vim? [Y/n]' ch
+        if ! [ "$ch" = "n" ]; then
+            choice='vim'
+        fi
+    fi
+    if [ -z "$choice" ] && ! [ -z "$(which vi)" ]; then
+        read -n1 -r -p $'\nUse vi? [Y/n]' ch
+        if ! [ "$ch" = "n" ]; then
+            choice='vi'
+        fi
+    fi
+    if [ -z "$choice" ]; then
+        read -r -p $'\nEnter path to editor:\n' choice
+    fi
+    echo "# this is a bash script sourced by rlyedit" > $CONFIG
+    echo "editor='${choice}'" > $CONFIG
+    echo
+fi
+if [ -f $CONFIG ]; then
+    source $CONFIG
+fi
+
+#=~=~=~=~=~=~=~=~=~=#
+# FUNCTIONS
+#=~=~=~=~=~=~=~=~=~=#
+_file_is_writable() {
+    if ! [ -w "$1" ]; then
+        if ! [ -f "$1" ]; then
+            # could be non-writable or simply nonexistent
+            touch "$1" &> /dev/null
+            if [ "$?" -eq 0 ]; then
+                # turns out we do have permission!
+                rm -f "$1"
+                return $true
+            fi
+        fi
+        return $false
+    fi
+    return $true
+}
+
+print_help() {
+    echo "usage: rlyedit [--reset] /path/to/file"
+    echo
+    echo "  --reset     delete config file"
+}
+
+#=~=~=~=~=~=~=~=~=~=#
+# MAIN
+#=~=~=~=~=~=~=~=~=~=#
+if [ -z "$1" ] || [ "$1" = "--help" ]; then
+    print_help
+elif [ "$1" = "--reset" ]; then
+    rm "$CONFIG" &> /dev/null
+    if [ "$?" -eq 0 ]; then
+        echo "Deleted ${CONFIG}"
+    else
+        echo "There ain't a config"
+    fi
+else
+    doCompleteTask=$true
+    useSudo=$false
+    _file_is_writable "$1"
+    if [ $? -eq $false ]; then
+        useSudo=$true
+        read -n1 -r -p $'File not writable. Open with sudo? [Y/n/a]\n' choice
+        if [ "$choice" = "a" ]; then
+            echo "bort."
+            doCompleteTask=$false
+        fi
+        if [ "$choice" = "n" ]; then
+            useSudo=$false
+        fi
+    fi
+    if [ $doCompleteTask -eq $true ]; then
+        if [ $useSudo -eq $true ]; then
+            sudo "$editor" "$1"
+        else
+            "$editor" "$1"
+        fi
+    fi
+fi
